@@ -2,31 +2,19 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "func",
-      "label": "func: host start",
-      "command": "host start",
-      "problemMatcher": "$func-node-watch",
-      "isBackground": true,
-      "dependsOn": "npm build (functions)"
-    },
-    {
       "type": "shell",
-      "label": "npm build (functions)",
+      "label": "npm: build",
       "command": "npm run build",
-      "dependsOn": "npm install (functions)",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": "$tsc"
     },
     {
       "type": "shell",
-      "label": "npm install (functions)",
+      "label": "npm: install",
       "command": "npm install"
-    },
-    {
-      "type": "shell",
-      "label": "npm prune (functions)",
-      "command": "npm prune --production",
-      "dependsOn": "npm build (functions)",
-      "problemMatcher": []
     }
   ]
 }

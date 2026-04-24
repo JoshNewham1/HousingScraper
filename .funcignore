@@ -1,6 +1,0 @@
-*.js.map
-.git*
-.vscode
-local.settings.json
-test
-node_modules

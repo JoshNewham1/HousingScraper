@@ -75,8 +75,6 @@ async function runScraper() {
       subject: `Flat Search - ${numProperties} new properties`,
       html: emailHtml,
     });
-
-    console.log("Email sent successfully");
   } catch (err) {
     console.error("Error during scraping process:", err);
     process.exit(1);

@@ -35,6 +35,7 @@ class MailjetProvider implements EmailProvider {
   }
 
   async sendEmail(options: EmailOptions): Promise<void> {
+    if (process.env.SEND_EMAIL == "false") return;
     await this.mailjet
       .post('send', { version: 'v3.1' })
       .request({
@@ -54,6 +55,7 @@ class MailjetProvider implements EmailProvider {
           }
         ]
       });
+    console.log("Email sent successfully");
   }
 }
 

@@ -1,5 +1,6 @@
 import * as puppeteer from "puppeteer";
 import { delay, Property } from "./utils";
+import $ from "jquery";
 
 export const scrapeRightMove = async () => {
   const startingUrl = process.env["RIGHTMOVE_LINK"];

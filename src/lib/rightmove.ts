@@ -1,5 +1,5 @@
 import * as puppeteer from "puppeteer";
-import { delay } from "./utils";
+import { delay, Property } from "./utils";
 
 export const scrapeRightMove = async () => {
   const startingUrl = process.env["RIGHTMOVE_LINK"];
@@ -53,9 +53,14 @@ export const scrapeRightMove = async () => {
       return el ? parseInt(el) : 1;
     });
     console.log(`${numPages} pages found on Rightmove website`);
-    let properties: any = {};
+    let properties: Record<string, Property> = {};
     for (let i = 1; i <= numPages; i++) {
-      const thisPage = await page.evaluate(async () => {
+      const thisPage: Property[] = await page.evaluate(async () => {
+        const parseDate = (dateStr: string): string => {
+          if (dateStr.split("/").length !== 3) return dateStr;
+          const [day, month, year] = dateStr.split("/").map(Number);
+          return new Date(year, month - 1, day).toISOString();
+        };
         const results = await Promise.all(
           $(".propertyCard-details")
             .map(async function () {
@@ -97,13 +102,15 @@ export const scrapeRightMove = async () => {
 
               const image = $(this).find('img[src*="property-photo"]').first().attr('src');
 
-              const availableDate =
+              const availableDateStr =
                 // Use a nasty selector to get the available date text (it has no class or id)
                 $(metadata)
                   .find(
                     "#main > div > div > div > article:nth-child(5) > div > dl > div:nth-child(1) > dd"
                   )
                   .text();
+
+              let availableDate = parseDate(availableDateStr);
 
               const furnished = $(metadata)
                 .find(
@@ -125,26 +132,28 @@ export const scrapeRightMove = async () => {
                 link,
                 bedrooms,
                 pricePerMonth,
-                pricePerMonthPerPerson: (pricePerMonth / bedrooms).toFixed(2),
+                pricePerMonthPerPerson: pricePerMonth / bedrooms,
                 pricePerWeek,
                 image,
                 availableDate,
                 furnished,
                 agent,
-              };
+              } as Property;
             })
             .toArray()
         );
         return results;
       });
+      const startDate = process.env.START_DATE_FILTER && new Date(process.env.START_DATE_FILTER);
+      const filtered = thisPage.filter(p => !startDate || (new Date(p.availableDate) && new Date(p.availableDate) >= startDate));
       console.log(
-        `Rightmove: page ${i} scraped, ${thisPage.length} properties scraped`
+        `Rightmove: page ${i} scraped, ${thisPage.length} properties scraped, ${filtered.length} filtered results`
       );
 
       // Add all entries from the page into object
       // using a composite key of address, agent, pricePerMonth and bedrooms
       // to be unique (as some properties change their URL daily)
-      for (const property of thisPage) {
+      for (const property of filtered) {
         const compositeKey =
           property.address +
           property.agent +
@@ -160,7 +169,7 @@ export const scrapeRightMove = async () => {
         await page.evaluate(() => {
           (document.querySelector('[data-testid="nextPage"]') as HTMLButtonElement)?.click();
         });
-        await delay(1000);
+        await page.waitForNetworkIdle();
       }
     }
     return properties;

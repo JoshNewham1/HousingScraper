@@ -22,6 +22,26 @@ export const scrapeRightMove = async () => {
     );
     await page.goto(startingUrl);
     await page.waitForSelector(".propertyCard-details");
+
+    // Scroll down to trigger lazy loading of images
+    await page.evaluate(async () => {
+      await new Promise((resolve) => {
+        let totalHeight = 0;
+        const distance = 200;
+        const timer = setInterval(() => {
+          var scrollHeight = document.body.scrollHeight;
+          window.scrollBy(0, distance);
+          totalHeight += distance;
+
+          if (totalHeight >= scrollHeight - window.innerHeight) {
+            clearInterval(timer);
+            resolve("");
+          }
+        }, 100);
+      });
+    });
+    await delay(2000);
+
     // Add jQuery to the page so we can use it for selectors
     // Note: this only needs to be done once for Rightmove as it uses AJAX and doesn't load any new pages
     await page.addScriptTag({
@@ -45,8 +65,6 @@ export const scrapeRightMove = async () => {
                 $(this).find(".propertyCard-link").attr("href");
 
               // "Click into" the property to get more metadata
-              // Note: using fetch inside evaluate might have CORS issues if not handled, 
-              // but in original code it was used.
               const metadata = await fetch(link).then((res) => res.text());
 
               const address = $(this).find("address").text().trim();
@@ -77,9 +95,7 @@ export const scrapeRightMove = async () => {
                     .match(/\d+/g);
               const pricePerWeek = secondaryPriceText ? parseInt(secondaryPriceText[0]) : 0;
 
-              const image = $(this)
-                              .find('[class*="PropertyCardImageSwiper_propertyImagesWrapper"] > div > div:nth-child(1) > img:nth-child(1)')
-                              .attr("src");
+              const image = $(this).find('img[src*="property-photo"]').first().attr('src');
 
               const availableDate =
                 // Use a nasty selector to get the available date text (it has no class or id)

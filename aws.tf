@@ -133,6 +133,25 @@ resource "aws_ecr_repository" "app" {
   force_delete = true
 }
 
+resource "aws_ecr_lifecycle_policy" "app" {
+  repository = aws_ecr_repository.app.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep only the latest image"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 1
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })
+}
+
 # --- IAM Roles ---
 resource "aws_iam_role" "ecs_task_execution" {
   name = "${var.project_name}-task-execution-role"

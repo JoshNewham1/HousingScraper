@@ -117,7 +117,7 @@ export const scrapeGumtree = async () => {
             const priceNum = priceText.replace(/[^\d]/g, '');
             const pricePerMonth = priceText.includes("pw") ? parseInt(priceNum || "") * 4 : parseInt(priceNum || "");
 
-            const image = $(this).find("img").attr("src");
+            const image = $(this).find("img").attr("src") || $(this).find("img").attr("data-src");
 
             const availableDateStr =
               // Date available text with "Date available: " stripped

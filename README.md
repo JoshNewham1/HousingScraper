@@ -1,14 +1,13 @@
-# Housing Scraper (Dockerized)
+# Housing Scraper
 
-A modern Node.js housing scraper for Gumtree and Rightmove, migrated from Azure Functions to a standalone containerized service.
+A TypeScript housing scraper that checks Gumtree and Rightmove periodically and sends an email update with new/updated properties, designed to run as a serverless Docker container.
 
 ## Features
 
 - **Automated Scraping**: Scrapes Rightmove and Gumtree for new properties based on your search criteria.
 - **Change Detection**: Compares current results with previous ones to find new or updated listings.
-- **Execution**: Run it once to scrape and notify; ideal for external scheduling (e.g., system cron, Kubernetes CronJob).
-- **Email Notifications**: Sends detailed HTML emails with images and property details.
-- **Dockerized**: Easy deployment using Docker and Docker Compose.
+- **Email Notifications**: Sends update emails with images and property details.
+- **Dockerised**: Easy deployment using Docker and Docker Compose.
 
 ## Prerequisites
 
@@ -19,7 +18,7 @@ A modern Node.js housing scraper for Gumtree and Rightmove, migrated from Azure 
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:JoshNewham1/HousingScraper.git
    cd AzureHousingScraper
    ```
 
@@ -37,48 +36,9 @@ A modern Node.js housing scraper for Gumtree and Rightmove, migrated from Azure 
 
 3. **Run with Docker Compose**:
    ```bash
-   docker-compose up
+   docker compose up --build
    ```
    *Note: The container will exit after completing the scrape.*
-
-## Cloud Deployment (AWS)
-
-This project is configured for deployment to AWS using **ECS Fargate** and **EFS** for persistent storage. It is designed to run once daily at 9:00 AM UTC to stay within the AWS Free Tier.
-
-### Features
-- **Serverless**: Runs on ECS Fargate (no EC2 instances to manage).
-- **Persistent Storage**: Uses AWS EFS to remember seen properties across runs.
-- **Cost Optimised**: Uses public subnets and public IPs to avoid NAT Gateway costs ($32+/mo).
-- **Scheduled**: Automatically triggered daily via EventBridge.
-
-### Prerequisites
-- [Terraform](https://www.terraform.io/downloads.html) installed.
-- [AWS CLI](https://aws.amazon.com/cli/) installed and configured with appropriate credentials (`aws login`).
-- Docker installed and running.
-
-### Deployment Steps
-
-1. **Configure Environment Variables**:
-   Ensure your `.env` file is fully populated. These values will be automatically uploaded to the AWS ECS task.
-
-2. **Initialize Infrastructure**:
-   ```bash
-   terraform init
-   ```
-
-3. **Deploy (Infrastructure + Image)**:
-   Run the deployment script:
-   ```bash
-   ./deploy.sh
-   ```
-   *The script automatically generates a `terraform.tfvars` from your `.env`, runs `terraform apply`, and pushes your Docker image to ECR.*
-
-4. **Verify**:
-   - Check the **Amazon EventBridge** console to see the scheduled rule (`housing-scraper-daily-scrape`).
-   - Check **CloudWatch Logs** (`/ecs/housing-scraper`) to monitor execution.
-
-### Persistence in the Cloud
-The application is configured to mount an EFS volume at `/app/data`. This ensures that `housing.json` is preserved even when the Fargate task terminates, preventing duplicate notifications.
 
 ## Local Development
 
@@ -103,6 +63,39 @@ For development with hot-reload:
 ```bash
 npm run dev
 ```
+
+## Cloud Deployment (AWS)
+
+We provide a Terraform file for deployment to AWS using **ECS Fargate** and **EFS** for persistent storage. It is designed to run once daily at 9:00 AM UTC to stay within the AWS Free Tier.
+
+### Prerequisites
+- [Terraform](https://www.terraform.io/downloads.html) installed.
+- [AWS CLI](https://aws.amazon.com/cli/) installed and configured with appropriate credentials (`aws login`).
+- Docker installed and running.
+
+### Deployment Steps
+
+1. **Configure Environment Variables**:
+   Ensure your `.env` file is fully populated. These values will be automatically uploaded to the AWS ECS task.
+
+2. **Initialise Infrastructure**:
+   ```bash
+   terraform init
+   ```
+
+3. **Deploy (Infrastructure + Image)**:
+   Run the deployment script:
+   ```bash
+   ./deploy.sh
+   ```
+   *The script automatically generates a `terraform.tfvars` from your `.env`, runs `terraform apply`, and pushes your Docker image to ECR.*
+
+4. **Verify**:
+   - Check the **Elastic Container Service's Scheduled Tasks** to see/modify the schedule (`housing-scraper-daily-scrape`).
+   - Check **CloudWatch Logs** (`/ecs/housing-scraper`) to monitor execution.
+
+### Persistence in the Cloud
+The application is configured to mount an EFS volume at `/app/data`. This ensures that `housing.json` is preserved even when the Fargate task terminates, preventing duplicate notifications.
 
 ## Architecture
 

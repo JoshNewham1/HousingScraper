@@ -175,7 +175,7 @@ export const scrapeRightMove = async () => {
         await page.evaluate(() => {
           (document.querySelector('[data-testid="nextPage"]') as HTMLButtonElement)?.click();
         });
-        await page.waitForNetworkIdle();
+        await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
       }
     }
     return properties;

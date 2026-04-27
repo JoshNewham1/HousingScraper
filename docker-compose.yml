@@ -1,0 +1,10 @@
+services:
+  housing-scraper:
+    build: .
+    container_name: housing-scraper
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data

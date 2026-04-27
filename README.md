@@ -1,87 +1,112 @@
-# Azure Housing Scraper
+# Housing Scraper (Dockerized)
 
-## Table of Contents
+A modern Node.js housing scraper for Gumtree and Rightmove, migrated from Azure Functions to a standalone containerized service.
 
-- [Azure Housing Scraper](#azure-housing-scraper)
-  - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
-  - [What it does](#what-it-does)
-  - [How it works](#how-it-works)
-    - [`function.json`](#functionjson)
-    - [`index.ts`](#indexts)
-    - [`gumtree.ts`](#gumtreets)
-    - [`rightmove.ts`](#rightmovets)
-  - [Setup](#setup)
-    - [Prerequisites](#prerequisites)
-    - [Deployment](#deployment)
+## Features
 
-## Introduction
+- **Automated Scraping**: Scrapes Rightmove and Gumtree for new properties based on your search criteria.
+- **Change Detection**: Compares current results with previous ones to find new or updated listings.
+- **Execution**: Run it once to scrape and notify; ideal for external scheduling (e.g., system cron, Kubernetes CronJob).
+- **Email Notifications**: Sends detailed HTML emails with images and property details.
+- **Dockerized**: Easy deployment using Docker and Docker Compose.
 
-This project aimed to solve the problem of having to trawl through property listings (currently on Rightmove and Gumtree) daily to try and find a flat in Edinburgh, though it can obviously be used elsewhere.
+## Prerequisites
 
-Both services do have email alerts but I found these unreliable and badly formatted, plus learning Azure Functions and serverless things in general was fun (and this whole project can be hosted for free!)
-
-## What it does
-
-Twice a day, at 9am and 5pm, an Azure function is run that goes to the property listing websites and
-scrapes metadata on all the properties listed. It then saves this and sends out an email.
-
-In more detail, the function:
-
-- Launches Puppeteer, a headless web browser used for testing
-- Navigates to property websites and scrapes all properties from a search link
-- Does a diff on the last time it ran to see what's changed (added / updated properties)
-- Sends an email with the changed properties
-- Stores the JSON in Azure Blob Storage so it can be reported on (in Power BI)
-
-## How it works
-
-### `function.json`
-
-The `function.json` file contains configurations that you may wish to change including:
-
-- `schedule` - how often the Azure function runs (in cron format)
-- `inputJson` - the path to the JSON in blob storage (read in to do the diff)
-- `outputJson` - the path to the JSON in blob storage (written to after scraping)
-- `retry` - the retry strategy the function should use if it fails (due to Puppeteer timing out etc)
-  - Currently it tries again up to a max of 6 times, with a 5 minute interval inbetween
-
-### `index.ts`
-
-The entry point for the function, sets off the scraping and does the diff / emailing at the end
-
-### `gumtree.ts`
-
-Code to start up the web browser and scrape all pages of a Gumtree search link
-
-### `rightmove.ts`
-
-Code to start up the web browser and scrape all pages of a Rightmove search link
+- Docker and Docker Compose
+- A Mailjet account with API keys and a verified sender email.
 
 ## Setup
 
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd AzureHousingScraper
+   ```
+
+2. **Configure Environment Variables**:
+   Copy `.env.example` to `.env` and fill in your details:
+   ```bash
+   cp .env.example .env
+   ```
+   - `GUMTREE_LINK`: Your specific Gumtree search URL.
+   - `RIGHTMOVE_LINK`: Your specific Rightmove search URL.
+   - `MJ_APIKEY_PUBLIC`: Your Mailjet API Public Key.
+   - `MJ_APIKEY_PRIVATE`: Your Mailjet API Private Key.
+   - `SENDER_EMAIL`: Your verified Mailjet sender email.
+   - `RECIPIENT_EMAIL`: Where you want to receive notifications.
+
+3. **Run with Docker Compose**:
+   ```bash
+   docker-compose up
+   ```
+   *Note: The container will exit after completing the scrape.*
+
+## Cloud Deployment (AWS)
+
+This project is configured for deployment to AWS using **ECS Fargate** and **EFS** for persistent storage. It is designed to run once daily at 9:00 AM UTC to stay within the AWS Free Tier.
+
+### Features
+- **Serverless**: Runs on ECS Fargate (no EC2 instances to manage).
+- **Persistent Storage**: Uses AWS EFS to remember seen properties across runs.
+- **Cost Optimised**: Uses public subnets and public IPs to avoid NAT Gateway costs ($32+/mo).
+- **Scheduled**: Automatically triggered daily via EventBridge.
+
 ### Prerequisites
+- [Terraform](https://www.terraform.io/downloads.html) installed.
+- [AWS CLI](https://aws.amazon.com/cli/) installed and configured with appropriate credentials (`aws login`).
+- Docker installed and running.
 
-1. An Azure account (can be free)
-2. A resource group for all the scraper-related resources
-3. The provisioning of the following resources
-   1. A Node.js function app (>= v16 LTS, on Linux, Consumption plan)
-   2. A storage account
-   3. An Application Insights resource (for logging)
-4. The following environment variables _(Application Settings)_ being added to the Function App > Configuration
-   1. `GOOGLE_APP_PASSWORD` - an App Password for Gmail to authenticate the email sender. Generated on
-      [Google Account page](myaccount.google.com) under "2-Step Verification"
-   2. `SENDER_EMAIL` - the Gmail address you want to send from
-   3. `RECIPIENT_EMAIL` - the emaill address(es) you want to send to. Separate with a semi-colon if more than one
-   4. `RIGHTMOVE_LINK` - the Rightmove search link to scrape daily. e.g. [this link](https://www.rightmove.co.uk/property-to-rent/find.html?locationIdentifier=REGION%5E475&minBedrooms=3&radius=3.0&sortType=1&propertyTypes=&includeLetAgreed=false&mustHave=student&dontShow=&furnishTypes=&keywords=)
-   5. `GUMTREE_LINK` - the Rightmove search link to scrape daily. e.g. [this link](https://www.gumtree.com/search?featured_filter=false&q=&min_property_number_beds=3&search_category=property-to-rent&urgent_filter=false&sort=date&max_property_number_beds=5&search_distance=3&search_scope=false&photos_filter=false&search_location=EH11JT&distance=3)
-5. A dummy JSON file (can just be a file with `{}` in it) uploaded to Azure Blob Storage at the path
-   specified in `function.json`
+### Deployment Steps
 
-### Deployment
+1. **Configure Environment Variables**:
+   Ensure your `.env` file is fully populated. These values will be automatically uploaded to the AWS ECS task.
 
-1. Ensure you've fulfilled the prerequisites
-2. Install the Azure Functions VS Code extension
-3. Clone this repo locally and open it in VS Code
-4. Go to the Azure icon in the left-hand panel and press the Deploy button (cloud icon)
-5. Follow the instructions
+2. **Initialize Infrastructure**:
+   ```bash
+   terraform init
+   ```
+
+3. **Deploy (Infrastructure + Image)**:
+   Run the deployment script:
+   ```bash
+   ./deploy.sh
+   ```
+   *The script automatically generates a `terraform.tfvars` from your `.env`, runs `terraform apply`, and pushes your Docker image to ECR.*
+
+4. **Verify**:
+   - Check the **Amazon EventBridge** console to see the scheduled rule (`housing-scraper-daily-scrape`).
+   - Check **CloudWatch Logs** (`/ecs/housing-scraper`) to monitor execution.
+
+### Persistence in the Cloud
+The application is configured to mount an EFS volume at `/app/data`. This ensures that `housing.json` is preserved even when the Fargate task terminates, preventing duplicate notifications.
+
+## Local Development
+
+If you want to run the application locally without Docker:
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Build the project**:
+   ```bash
+   npm run build
+   ```
+
+3. **Start the service**:
+   ```bash
+   npm start
+   ```
+
+For development with hot-reload:
+```bash
+npm run dev
+```
+
+## Architecture
+
+- **Node.js 20**: Core runtime.
+- **Puppeteer**: Headless browser for scraping.
+- **node-mailjet**: Email delivery.
+- **Deep-Object-Diff**: Intelligent change detection.

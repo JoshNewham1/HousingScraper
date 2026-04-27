@@ -1,9 +1,13 @@
-import * as puppeteer from "puppeteer";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { delay, Property } from "./utils";
+import { Page } from "puppeteer";
+
+puppeteer.use(StealthPlugin());
 
 // Scroll down the page by the height of the window until we reach the bottom
 // Delay by 100ms to give content time to start loading
-const autoScroll = async (page: puppeteer.Page) => {
+const autoScroll = async (page: Page) => {
   await page.evaluate(async () => {
     await new Promise((resolve) => {
       let totalHeight = 0;
@@ -30,7 +34,7 @@ export const scrapeGumtree = async () => {
   }
 
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
     timeout: 0,
@@ -66,18 +70,27 @@ export const scrapeGumtree = async () => {
       });
       // Create an object with all the properties on the current page and their attributes
       const thisPage: Property[] = await page.evaluate(() => {
+        let additionalResults = false;
         const parseDate = (dateStr: string): string => {
           if (dateStr.split(" ").length !== 3) return dateStr;
           const [d, m, y] = dateStr.split(" ");
-          return new Date(
+          let date = new Date(
             Number(y),
             new Date(`${m} 1, 2000`).getMonth(),
             Number(d)
-          ).toISOString();
+          );
+          // If in the past, assume it's still available today
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (date < today) date = today;
+
+          return date.toISOString();
         };
         return $('[data-q="section-middle"] > div > [class$="-list"]')
           .map(function () {
             if ($(this).hasClass("ad-spot")) return;
+            if ($(this).is('[class$="nearby-ads-list"]')) additionalResults = true;
+            if (additionalResults) { console.log("Early exit"); return; }
 
             // Remove the miles distance from address
             const address = $(this).find('[data-q="tile-location"]').text().trim();
@@ -109,7 +122,7 @@ export const scrapeGumtree = async () => {
             const availableDateStr =
               // Date available text with "Date available: " stripped
               $(this)
-                .find('.attributes-container > span:nth-child(3)')
+                .find('.attributes-container > span:nth-child(2)')
                 .text()
                 .replace("Date available: ", "");
             const availableDate = parseDate(availableDateStr);
@@ -141,7 +154,7 @@ export const scrapeGumtree = async () => {
       // Add all entries from the page into object
       // using a composite key of address, agent, pricePerMonth and bedrooms
       // to be unique (as some properties change their URL daily)
-      for (const property of thisPage) {
+      for (const property of filtered) {
         const compositeKey =
           property.address +
           property.agent +

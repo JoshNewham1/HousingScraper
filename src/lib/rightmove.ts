@@ -1,6 +1,6 @@
 import * as puppeteer from "puppeteer";
 import { delay, Property } from "./utils";
-import $ from "jquery";
+import type {} from "jquery";
 
 export const scrapeRightMove = async () => {
   const startingUrl = process.env["RIGHTMOVE_LINK"];
@@ -58,9 +58,14 @@ export const scrapeRightMove = async () => {
     for (let i = 1; i <= numPages; i++) {
       const thisPage: Property[] = await page.evaluate(async () => {
         const parseDate = (dateStr: string): string => {
-          if (dateStr.split("/").length !== 3) return dateStr;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (dateStr.split("/").length !== 3) return today.toISOString();
+
           const [day, month, year] = dateStr.split("/").map(Number);
-          return new Date(year, month - 1, day).toISOString();
+          let date = new Date(year, month - 1, day);
+          if (date < today) date = today;
+          return date.toISOString();
         };
         const results = await Promise.all(
           $(".propertyCard-details")

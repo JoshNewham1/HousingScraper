@@ -1,3 +1,5 @@
+import dns from "dns/promises";
+
 export type Property = {
   address: string,
   type: string,
@@ -10,6 +12,15 @@ export type Property = {
   availableDate: string,
   furnished: string,
   agent: string,
+}
+
+export async function hasInternetConnection(): Promise<boolean> {
+  try {
+    await dns.resolve("rightmove.co.uk");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export const delay = (delayMs: number) => {

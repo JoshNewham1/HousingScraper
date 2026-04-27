@@ -6,7 +6,7 @@ import * as path from "path";
 import { detailedDiff } from "deep-object-diff";
 import { scrapeGumtree } from "./lib/gumtree";
 import { scrapeRightMove } from "./lib/rightmove";
-import { buildEmailHtml } from "./lib/utils";
+import { buildEmailHtml, hasInternetConnection } from "./lib/utils";
 import { sendEmail } from "./lib/email";
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
@@ -17,6 +17,12 @@ async function runScraper() {
   try {
     // Ensure data directory exists
     await fs.ensureDir(DATA_DIR);
+
+    if (await hasInternetConnection()) {
+      console.log("Connected to Internet");
+    } else {
+      console.error("Could not connect to Internet");
+    }
 
     // Load old properties
     let oldProperties = {};

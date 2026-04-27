@@ -41,15 +41,44 @@ A modern Node.js housing scraper for Gumtree and Rightmove, migrated from Azure 
    ```
    *Note: The container will exit after completing the scrape.*
 
-## External Scheduling
+## Cloud Deployment (AWS)
 
-Since the application is now a run-once script, you can schedule it using an external tool.
+This project is configured for deployment to AWS using **ECS Fargate** and **EFS** for persistent storage. It is designed to run once daily at 9:00 AM UTC to stay within the AWS Free Tier.
 
-### Example System Cron
-To run every day at 9 AM and 6 PM:
-```bash
-0 9,18 * * * cd /path/to/AzureHousingScraper && /usr/local/bin/docker-compose up
-```
+### Features
+- **Serverless**: Runs on ECS Fargate (no EC2 instances to manage).
+- **Persistent Storage**: Uses AWS EFS to remember seen properties across runs.
+- **Cost Optimised**: Uses public subnets and public IPs to avoid NAT Gateway costs ($32+/mo).
+- **Scheduled**: Automatically triggered daily via EventBridge.
+
+### Prerequisites
+- [Terraform](https://www.terraform.io/downloads.html) installed.
+- [AWS CLI](https://aws.amazon.com/cli/) installed and configured with appropriate credentials (`aws login`).
+- Docker installed and running.
+
+### Deployment Steps
+
+1. **Configure Environment Variables**:
+   Ensure your `.env` file is fully populated. These values will be automatically uploaded to the AWS ECS task.
+
+2. **Initialize Infrastructure**:
+   ```bash
+   terraform init
+   ```
+
+3. **Deploy (Infrastructure + Image)**:
+   Run the deployment script:
+   ```bash
+   ./deploy.sh
+   ```
+   *The script automatically generates a `terraform.tfvars` from your `.env`, runs `terraform apply`, and pushes your Docker image to ECR.*
+
+4. **Verify**:
+   - Check the **Amazon EventBridge** console to see the scheduled rule (`housing-scraper-daily-scrape`).
+   - Check **CloudWatch Logs** (`/ecs/housing-scraper`) to monitor execution.
+
+### Persistence in the Cloud
+The application is configured to mount an EFS volume at `/app/data`. This ensures that `housing.json` is preserved even when the Fargate task terminates, preventing duplicate notifications.
 
 ## Local Development
 
@@ -74,10 +103,6 @@ For development with hot-reload:
 ```bash
 npm run dev
 ```
-
-## Data Persistence
-
-The application stores the latest scraping results in `data/housing.json`. When running with Docker Compose, this file is persisted in a local `data` directory mapped as a volume.
 
 ## Architecture
 

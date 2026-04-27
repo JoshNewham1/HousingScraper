@@ -11,7 +11,7 @@ export const scrapeRightMove = async () => {
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     timeout: 0,
   });
 
@@ -21,7 +21,7 @@ export const scrapeRightMove = async () => {
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.61 Safari/537.36"
     );
-    await page.goto(startingUrl);
+    await page.goto(startingUrl, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(".propertyCard-details");
 
     // Scroll down to trigger lazy loading of images

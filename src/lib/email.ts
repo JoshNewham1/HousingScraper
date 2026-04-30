@@ -45,11 +45,8 @@ class MailjetProvider implements EmailProvider {
               Email: options.from,
               Name: "Housing Scraper"
             },
-            To: [
-              {
-                Email: options.to
-              }
-            ],
+            To:
+              options.to.split(";").map(e => ({ Email: e })),
             Subject: options.subject,
             HTMLPart: options.html
           }

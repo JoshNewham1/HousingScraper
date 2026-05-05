@@ -77,11 +77,12 @@ export const scrapeGumtree = async () => {
           let date = new Date(
             Number(y),
             new Date(`${m} 1, 2000`).getMonth(),
-            Number(d)
+            Number(d),
+            12 // Midday
           );
           // If in the past, assume it's still available today
           const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          today.setUTCHours(0, 0, 0, 0);
           if (date < today) date = today;
 
           return date.toISOString();
@@ -155,12 +156,8 @@ export const scrapeGumtree = async () => {
       // using a composite key of address, agent, pricePerMonth and bedrooms
       // to be unique (as some properties change their URL daily)
       for (const property of filtered) {
-        const compositeKey =
-          property.address +
-          property.agent +
-          property.pricePerMonth +
-          property.bedrooms;
-        properties[compositeKey] = property;
+        const key = property.link;
+        properties[key] = property;
       }
 
       // Still pages left to go through

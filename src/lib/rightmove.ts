@@ -59,11 +59,11 @@ export const scrapeRightMove = async () => {
       const thisPage: Property[] = await page.evaluate(async () => {
         const parseDate = (dateStr: string): string => {
           const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          today.setUTCHours(0, 0, 0, 0);
           if (dateStr.split("/").length !== 3) return today.toISOString();
 
           const [day, month, year] = dateStr.split("/").map(Number);
-          let date = new Date(year, month - 1, day);
+          let date = new Date(year, month - 1, day, 12);
           if (date < today) date = today;
           return date.toISOString();
         };
@@ -160,15 +160,11 @@ export const scrapeRightMove = async () => {
       // using a composite key of address, agent, pricePerMonth and bedrooms
       // to be unique (as some properties change their URL daily)
       for (const property of filtered) {
-        const compositeKey =
-          property.address +
-          property.agent +
-          property.pricePerMonth +
-          property.bedrooms;
-        if (properties[compositeKey]) {
-          console.log("Duplicate found:", compositeKey);
+        const key = property.link;
+        if (properties[key]) {
+          console.log("Duplicate found:", key);
         }
-        properties[compositeKey] = property;
+        properties[key] = property;
       }
       
       if (i < numPages) {

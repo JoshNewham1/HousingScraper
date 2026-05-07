@@ -59,7 +59,7 @@ export const buildEmailHtml = (properties: Record<string, Property>, subtitle: s
   Object.keys(properties).forEach((key) => {
     emailHtml += `
     <div style="margin-bottom: 25px;">
-      <a href="${properties[key]["link"]}">Link</a> <br/>
+      <a href="${key}">Link</a> <br/>
       <img src="${properties[key]["image"]}" width="200">
     `;
 

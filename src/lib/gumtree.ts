@@ -1,31 +1,8 @@
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { delay, Property } from "./utils";
-import { Page } from "puppeteer";
+import { Property, autoScroll, delay } from "./utils";
 
 puppeteer.use(StealthPlugin());
-
-// Scroll down the page by the height of the window until we reach the bottom
-// Delay by 100ms to give content time to start loading
-const autoScroll = async (page: Page) => {
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      let totalHeight = 0;
-      const distance = 100;
-      const timer = setInterval(() => {
-        var scrollHeight = document.body.scrollHeight;
-        window.scrollBy(0, distance);
-        totalHeight += distance;
-
-        if (totalHeight >= scrollHeight - window.innerHeight) {
-          clearInterval(timer);
-          resolve("");
-        }
-      }, 250);
-    });
-  });
-  await delay(2000);
-};
 
 export const scrapeGumtree = async () => {
   const startingUrl = process.env["GUMTREE_LINK"];
@@ -59,15 +36,15 @@ export const scrapeGumtree = async () => {
     });
     console.log(`${numPages} pages found on Gumtree website`);
 
-    // Lazy load images
-    await autoScroll(page);
-
     let properties: any = {};
     for (let i = 1; i <= numPages; i++) {
       // Add jQuery to the page so we can use it to more easily scrape elements
       await page.addScriptTag({
         url: "https://code.jquery.com/jquery-3.3.1.slim.min.js",
       });
+      // Lazy load images
+      await autoScroll(page);
+      await delay(2000);
       // Create an object with all the properties on the current page and their attributes
       const thisPage: Property[] = await page.evaluate(() => {
         let additionalResults = false;
@@ -128,6 +105,8 @@ export const scrapeGumtree = async () => {
                 .replace("Date available: ", "");
             const availableDate = parseDate(availableDateStr);
 
+            // TODO: Fetch extra information from description (with fetch req)
+
             return {
               address,
               type,
@@ -140,6 +119,7 @@ export const scrapeGumtree = async () => {
               image,
               availableDate,
               furnished: "Unknown",
+              concierge: "Unknown",
               agent: "Gumtree",
             } as Property;
           })

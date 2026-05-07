@@ -1,5 +1,5 @@
 import * as puppeteer from "puppeteer";
-import { delay, Property } from "./utils";
+import { autoScroll, delay, Property } from "./utils";
 import type {} from "jquery";
 
 export const scrapeRightMove = async () => {
@@ -24,25 +24,6 @@ export const scrapeRightMove = async () => {
     await page.goto(startingUrl, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(".propertyCard-details");
 
-    // Scroll down to trigger lazy loading of images
-    await page.evaluate(async () => {
-      await new Promise((resolve) => {
-        let totalHeight = 0;
-        const distance = 200;
-        const timer = setInterval(() => {
-          var scrollHeight = document.body.scrollHeight;
-          window.scrollBy(0, distance);
-          totalHeight += distance;
-
-          if (totalHeight >= scrollHeight - window.innerHeight) {
-            clearInterval(timer);
-            resolve("");
-          }
-        }, 100);
-      });
-    });
-    await delay(2000);
-
     // Add jQuery to the page so we can use it for selectors
     // Note: this only needs to be done once for Rightmove as it uses AJAX and doesn't load any new pages
     await page.addScriptTag({
@@ -56,6 +37,8 @@ export const scrapeRightMove = async () => {
     console.log(`${numPages} pages found on Rightmove website`);
     let properties: Record<string, Property> = {};
     for (let i = 1; i <= numPages; i++) {
+      // Scroll down to trigger lazy loading of images
+      await autoScroll(page);
       const thisPage: Property[] = await page.evaluate(async () => {
         const parseDate = (dateStr: string): string => {
           const today = new Date();
@@ -120,9 +103,36 @@ export const scrapeRightMove = async () => {
 
               const furnished = $(metadata)
                 .find(
+                  "#main > div > div > div > article:nth-child(5) > div > dl > div:nth-child(3) > dd"
+                )
+                .text();
+
+              let councilTax = $(metadata)
+                .find(
                   "#main > div > div > div > article:nth-child(5) > div > dl > div:nth-child(4) > dd"
                 )
                 .text();
+              if (councilTax === "Ask agent") {
+                // Try to get it from further down on the page
+                councilTax = $(metadata)
+                  .find(
+                    "#main > div > div > div > article:nth-child(6) > dl > div:nth-child(1)"
+                  )
+                  .text()
+                  .split("Band: ")
+                  .pop()
+                  ?.slice(0, 1)
+                  ?.replace("T", "TBC") || councilTax;
+              }
+
+              const concierge = 
+                $(metadata)
+                  .find(
+                    "#main > div > div > div > article:nth-child(6) > div:nth-child(3)"
+                  )
+                  .text()
+                  .toLowerCase()
+                  .includes("concierge") ? "Yes" : "Unknown";
 
               const agent =
                 // Estate agent
@@ -143,6 +153,8 @@ export const scrapeRightMove = async () => {
                 image,
                 availableDate,
                 furnished,
+                councilTax,
+                concierge,
                 agent,
               } as Property;
             })

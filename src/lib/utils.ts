@@ -1,4 +1,5 @@
 import dns from "dns/promises";
+import { Page } from "puppeteer";
 
 export type Property = {
   address: string,
@@ -11,6 +12,8 @@ export type Property = {
   image: string,
   availableDate: string,
   furnished: string,
+  councilTax: string | undefined;
+  concierge: string;
   agent: string,
 }
 
@@ -26,6 +29,27 @@ export async function hasInternetConnection(): Promise<boolean> {
 export const delay = (delayMs: number) => {
   return new Promise<void>((res, _) => {
     setTimeout(() => res(), delayMs);
+  });
+};
+
+// Scroll down the page by the height of the window until we reach the bottom
+// Delay by 100ms to give content time to start loading
+export const autoScroll = async (page: Page) => {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        var scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+
+        if (totalHeight >= scrollHeight - window.innerHeight) {
+          clearInterval(timer);
+          resolve("");
+        }
+      }, 250);
+    });
   });
 };
 

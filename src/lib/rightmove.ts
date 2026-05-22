@@ -31,7 +31,7 @@ export const scrapeRightMove = async () => {
     });
     // Get the number of pages in the pagination element at the bottom
     const numPages = await page.evaluate(() => {
-      const el =  document.querySelector('[class*="Pagination_paginationContainer"] > div > span:nth-child(3)')?.innerHTML?.split("-->")[1];
+      const el =  document.querySelector('.rmds_pagination__select--wrapper > span')?.innerHTML?.split(" ")[1];
       return el ? parseInt(el) : 1;
     });
     console.log(`${numPages} pages found on Rightmove website`);
@@ -125,14 +125,17 @@ export const scrapeRightMove = async () => {
                   ?.replace("T", "TBC") || councilTax;
               }
 
-              const concierge = 
-                $(metadata)
-                  .find(
-                    "#main > div > div > div > article:nth-child(6) > div:nth-child(3)"
-                  )
-                  .text()
-                  .toLowerCase()
-                  .includes("concierge") ? "Yes" : "Unknown";
+              const concierge =
+                /concierge|security/.test(
+                  $(metadata)
+                    .find(
+                      "#main > div > div > div > article:nth-child(6) > div:nth-child(3)"
+                    )
+                    .text()
+                    .toLowerCase()
+                )
+                  ? "Yes"
+                  : "Unknown";
 
               const agent =
                 // Estate agent
@@ -181,7 +184,7 @@ export const scrapeRightMove = async () => {
       
       if (i < numPages) {
         await page.evaluate(() => {
-          (document.querySelector('[data-testid="nextPage"]') as HTMLButtonElement)?.click();
+          (document.querySelector('.rmds_pagination__next') as HTMLButtonElement)?.click();
         });
         await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
       }

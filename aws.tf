@@ -6,18 +6,23 @@ variable "project_name" {
   default = "housing-scraper"
 }
 
-variable "gumtree_link" { type = string }
-variable "rightmove_link" { type = string }
+# Shared Mailjet credentials (used by all instances)
 variable "mj_apikey_public" { type = string }
-variable "mj_apikey_private" { 
-  type = string
+variable "mj_apikey_private" {
+  type      = string
   sensitive = true
 }
 variable "sender_email" { type = string }
-variable "recipient_email" { type = string }
-variable "start_date_filter" {
-  type    = string
-  default = ""
+
+# Per-instance configuration — add a new entry here for each search profile
+variable "instances" {
+  type = map(object({
+    gumtree_link      = string
+    rightmove_link    = string
+    recipient_email   = string
+    start_date_filter = string
+    schedule          = string # cron expression, e.g. "cron(0 9 * * ? *)"
+  }))
 }
 
 # --- VPC & Networking ---
@@ -111,20 +116,23 @@ resource "aws_efs_mount_target" "data" {
   security_groups = [aws_security_group.efs.id]
 }
 
+# One EFS access point per instance, each rooted at /data/<instance-name>
 resource "aws_efs_access_point" "data" {
+  for_each       = var.instances
   file_system_id = aws_efs_file_system.data.id
   posix_user {
     gid = 1000 # Matches 'node' user in Dockerfile
     uid = 1000
   }
   root_directory {
-    path = "/data"
+    path = "/data/${each.key}"
     creation_info {
       owner_gid   = 1000
       owner_uid   = 1000
       permissions = "755"
     }
   }
+  tags = { Name = "${var.project_name}-${each.key}-ap" }
 }
 
 # --- ECR Repository ---
@@ -158,8 +166,8 @@ resource "aws_iam_role" "ecs_task_execution" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
     }]
   })
@@ -194,8 +202,8 @@ resource "aws_iam_role" "ecs_task_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
     }]
   })
@@ -221,18 +229,22 @@ resource "aws_iam_role_policy" "efs_access" {
   })
 }
 
-# --- ECS Cluster & Service ---
+# --- ECS Cluster ---
 resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-cluster"
 }
 
+# --- Per-Instance Resources ---
+
 resource "aws_cloudwatch_log_group" "ecs" {
-  name              = "/ecs/${var.project_name}"
+  for_each          = var.instances
+  name              = "/ecs/${var.project_name}/${each.key}"
   retention_in_days = 7
 }
 
 resource "aws_ecs_task_definition" "app" {
-  family                   = var.project_name
+  for_each                 = var.instances
+  family                   = "${var.project_name}-${each.key}"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 512
@@ -241,20 +253,19 @@ resource "aws_ecs_task_definition" "app" {
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([{
-    name  = var.project_name
-    image = "${aws_ecr_repository.app.repository_url}:latest"
+    name      = "${var.project_name}-${each.key}"
+    image     = "${aws_ecr_repository.app.repository_url}:latest"
     essential = true
-    
-    # Environment variables for the scraper
+
     environment = [
       { name = "DATA_DIR", value = "/app/data" },
-      { name = "GUMTREE_LINK", value = var.gumtree_link },
-      { name = "RIGHTMOVE_LINK", value = var.rightmove_link },
+      { name = "GUMTREE_LINK", value = each.value.gumtree_link },
+      { name = "RIGHTMOVE_LINK", value = each.value.rightmove_link },
       { name = "MJ_APIKEY_PUBLIC", value = var.mj_apikey_public },
       { name = "MJ_APIKEY_PRIVATE", value = var.mj_apikey_private },
       { name = "SENDER_EMAIL", value = var.sender_email },
-      { name = "RECIPIENT_EMAIL", value = var.recipient_email },
-      { name = "START_DATE_FILTER", value = var.start_date_filter },
+      { name = "RECIPIENT_EMAIL", value = each.value.recipient_email },
+      { name = "START_DATE_FILTER", value = each.value.start_date_filter },
       { name = "SEND_EMAIL", value = "true" }
     ]
 
@@ -267,7 +278,7 @@ resource "aws_ecs_task_definition" "app" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
+        "awslogs-group"         = aws_cloudwatch_log_group.ecs[each.key].name
         "awslogs-region"        = "eu-west-2"
         "awslogs-stream-prefix" = "ecs"
       }
@@ -280,7 +291,7 @@ resource "aws_ecs_task_definition" "app" {
       file_system_id     = aws_efs_file_system.data.id
       transit_encryption = "ENABLED"
       authorization_config {
-        access_point_id = aws_efs_access_point.data.id
+        access_point_id = aws_efs_access_point.data[each.key].id
         iam             = "ENABLED"
       }
     }
@@ -293,8 +304,8 @@ resource "aws_iam_role" "ecs_events" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "events.amazonaws.com" }
     }]
   })
@@ -309,7 +320,7 @@ resource "aws_iam_role_policy" "ecs_events_run_task" {
       {
         Effect   = "Allow"
         Action   = "ecs:RunTask"
-        Resource = [aws_ecs_task_definition.app.arn]
+        Resource = "arn:aws:ecs:eu-west-2:*:task-definition/${var.project_name}-*"
       },
       {
         Effect   = "Allow"
@@ -320,22 +331,24 @@ resource "aws_iam_role_policy" "ecs_events_run_task" {
   })
 }
 
-# --- Scheduled Task (Run at 9am UTC daily) ---
+# --- Scheduled Tasks ---
 resource "aws_cloudwatch_event_rule" "daily_scrape" {
-  name                = "${var.project_name}-daily-scrape"
-  description         = "Triggers the housing scraper daily at 9am UTC"
-  schedule_expression = "cron(0 9 * * ? *)"
+  for_each            = var.instances
+  name                = "${var.project_name}-${each.key}-scrape"
+  description         = "Triggers the housing scraper for ${each.key}"
+  schedule_expression = each.value.schedule
 }
 
 resource "aws_cloudwatch_event_target" "ecs_scheduled_task" {
-  rule      = aws_cloudwatch_event_rule.daily_scrape.name
-  target_id = "run-scraper-task"
+  for_each  = var.instances
+  rule      = aws_cloudwatch_event_rule.daily_scrape[each.key].name
+  target_id = "run-scraper-task-${each.key}"
   arn       = aws_ecs_cluster.main.arn
   role_arn  = aws_iam_role.ecs_events.arn
 
   ecs_target {
     task_count          = 1
-    task_definition_arn = aws_ecs_task_definition.app.arn
+    task_definition_arn = aws_ecs_task_definition.app[each.key].arn
     launch_type         = "FARGATE"
     network_configuration {
       subnets          = aws_subnet.public[*].id
@@ -357,6 +370,6 @@ output "ecs_cluster_name" {
   value = aws_ecs_cluster.main.name
 }
 
-output "event_rule_name" {
-  value = aws_cloudwatch_event_rule.daily_scrape.name
+output "event_rule_names" {
+  value = { for k, v in aws_cloudwatch_event_rule.daily_scrape : k => v.name }
 }

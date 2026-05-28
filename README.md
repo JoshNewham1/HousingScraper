@@ -1,6 +1,6 @@
 # Housing Scraper
 
-A TypeScript housing scraper that checks Gumtree and Rightmove periodically and sends an email update with new/updated properties, designed to run as a serverless Docker container.
+A housing scraper that checks Gumtree and Rightmove periodically and sends an email update with new/updated properties, designed to run as a serverless Docker container.
 
 ## Features
 
@@ -23,16 +23,30 @@ A TypeScript housing scraper that checks Gumtree and Rightmove periodically and 
    ```
 
 2. **Configure Environment Variables**:
-   Copy `.env.example` to `.env` and fill in your details:
+   
+   The application supports multiple instances, each with its own configuration. Set up a shared configuration and one or more instance configurations:
+   
+   **Shared configuration** (used by all instances):
    ```bash
-   cp .env.example .env
+   cp .env.shared.example .env.shared
    ```
-   - `GUMTREE_LINK`: Your specific Gumtree search URL.
-   - `RIGHTMOVE_LINK`: Your specific Rightmove search URL.
+   Fill in your Mailjet credentials:
    - `MJ_APIKEY_PUBLIC`: Your Mailjet API Public Key.
    - `MJ_APIKEY_PRIVATE`: Your Mailjet API Private Key.
    - `SENDER_EMAIL`: Your verified Mailjet sender email.
-   - `RECIPIENT_EMAIL`: Where you want to receive notifications.
+   
+   **Instance configuration** (one per search profile):
+   ```bash
+   cp .env.instance.example .env.my-search
+   ```
+   Fill in your search details:
+   - `GUMTREE_LINK`: Your specific Gumtree search URL.
+   - `RIGHTMOVE_LINK`: Your specific Rightmove search URL.
+   - `RECIPIENT_EMAIL`: Where you want to receive notifications (supports semicolon-delimited addresses).
+   - `START_DATE_FILTER`: (Optional) Only receive listings from this date onwards. Leave blank for all.
+   - `SCHEDULE`: (Optional) Cron expression for when to run (defaults to `cron(0 9 * * ? *)` which is 9am UTC daily).
+   
+   You can create multiple instance files (e.g. `.env.london-search`, `.env.manchester-search`) to run different searches simultaneously.
 
 3. **Run with Docker Compose**:
    ```bash
@@ -76,7 +90,7 @@ We provide a Terraform file for deployment to AWS using **ECS Fargate** and **EF
 ### Deployment Steps
 
 1. **Configure Environment Variables**:
-   Ensure your `.env` file is fully populated. These values will be automatically uploaded to the AWS ECS task.
+   Create your shared and instance configuration files (see [Setup](#setup) above). The deployment script will automatically pick them up.
 
 2. **Initialise Infrastructure**:
    ```bash
@@ -88,14 +102,30 @@ We provide a Terraform file for deployment to AWS using **ECS Fargate** and **EF
    ```bash
    ./deploy.sh
    ```
-   *The script automatically generates a `terraform.tfvars` from your `.env`, runs `terraform apply`, and pushes your Docker image to ECR.*
+   *The script automatically generates a `terraform.tfvars` from your `.env.shared` and `.env.<name>` files, runs `terraform apply`, and pushes your Docker image to ECR.*
 
 4. **Verify**:
-   - Check the **Elastic Container Service's Scheduled Tasks** to see/modify the schedule (`housing-scraper-daily-scrape`).
-   - Check **CloudWatch Logs** (`/ecs/housing-scraper`) to monitor execution.
+   - Check the **Elastic Container Service's Scheduled Tasks** to see the rules for each instance (named `housing-scraper-<instance>-scrape`).
+   - Check **CloudWatch Logs** (one log group per instance at `/ecs/housing-scraper/<instance>`) to monitor execution.
+
+### Managing Multiple Instances
+
+To add a new search profile after deployment:
+
+1. Create a new instance config file:
+   ```bash
+   cp .env.instance.example .env.another-search
+   ```
+   
+2. Re-run deployment:
+   ```bash
+   ./deploy.sh
+   ```
+   
+Terraform will create only the new per-instance resources (task definition, scheduled rule, log group, EFS access point) without recreating shared infrastructure. You can run different searches on different schedules simultaneously.
 
 ### Persistence in the Cloud
-The application is configured to mount an EFS volume at `/app/data`. This ensures that `housing.json` is preserved even when the Fargate task terminates, preventing duplicate notifications.
+The application uses a shared EFS volume for persistent storage across task runs. Each instance has its own isolated data directory at `/data/<instance-name>`, so multiple instances can run independently without interfering with each other's state. This ensures that `housing.json` is preserved even when Fargate tasks terminate, preventing duplicate notifications per instance.
 
 ## Architecture
 
